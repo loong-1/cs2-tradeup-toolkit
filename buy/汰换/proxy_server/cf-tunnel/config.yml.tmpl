@@ -1,0 +1,19 @@
+# ------------------------------------------------------------
+# Cloudflare Tunnel 配置文件（由 setup_cf_tunnel.py 生成）
+# 绑定域名：866868686.xyz       回源本地：http://127.0.0.1:80
+# 生成时间：2026-08-25 09:22:42
+# ------------------------------------------------------------
+tunnel: __TUNNEL_ID__
+credentials-file: __CRED_FILE__
+
+ingress:
+  - hostname: 866868686.xyz
+    service: http://127.0.0.1:80
+    originRequest:
+      httpHostHeader: "866868686.xyz"
+      noTLSVerify: true
+      connectTimeout: 10s
+      tcpKeepAlive: 30s
+
+  # 兜底：返回 404
+  - service: http_status:404

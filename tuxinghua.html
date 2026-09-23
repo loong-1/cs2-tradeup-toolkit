@@ -1,0 +1,1496 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CS2 库存展示器</title>
+    <style>
+        /* ===== 全局重置 & 布局 ===== */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            user-select: none;
+        }
+        header {
+            background: #16213e;
+            padding: 10px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #0f3460;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        header h1 {
+            font-size: 20px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #e94560, #f5a623);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            letter-spacing: 1px;
+        }
+        header .stats {
+            display: flex;
+            gap: 18px;
+            font-size: 13px;
+            color: #aaa;
+            flex-wrap: wrap;
+        }
+        header .stats span {
+            background: #1a1a3e;
+            padding: 3px 14px;
+            border-radius: 12px;
+            border: 1px solid #2a2a5e;
+        }
+        header .stats em {
+            font-style: normal;
+            color: #f5a623;
+            font-weight: 600;
+        }
+        .main {
+            display: flex;
+            flex: 1;
+            min-height: 0;
+        }
+        /* ===== 画布区域 ===== */
+        .canvas-wrap {
+            flex: 1;
+            background: #0d0d1f;
+            position: relative;
+            overflow: hidden;
+        }
+        .canvas-wrap canvas {
+            display: block;
+            background: #111128;
+            border-radius: 0;
+            cursor: grab;
+            position: absolute;
+            top: 0;
+            left: 0;
+            transform-origin: 0 0;
+        }
+        .canvas-wrap canvas:active {
+            cursor: grabbing;
+        }
+        /* ===== 垂直滑块 ===== */
+        .v-scroll {
+            position: absolute;
+            right: 4px;
+            top: 4px;
+            bottom: 4px;
+            width: 16px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            cursor: pointer;
+            touch-action: none;
+            z-index: 10;
+            opacity: 0.5;
+            transition: opacity 0.2s;
+        }
+        .v-scroll:hover {
+            opacity: 0.9;
+        }
+        .v-scroll .thumb {
+            position: absolute;
+            left: 2px;
+            right: 2px;
+            height: 40px;
+            background: rgba(245, 166, 35, 0.6);
+            border-radius: 6px;
+            cursor: grab;
+            transition: background 0.2s;
+            min-height: 20px;
+        }
+        .v-scroll .thumb:active {
+            background: rgba(245, 166, 35, 0.9);
+            cursor: grabbing;
+        }
+        .v-scroll .thumb.dragging {
+            background: rgba(245, 166, 35, 0.9);
+        }
+        /* ===== 右侧面板 ===== */
+        .side-panel {
+            width: 340px;
+            background: #16213e;
+            border-left: 2px solid #0f3460;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+        .panel-tabs {
+            display: flex;
+            background: #0f1a30;
+            border-bottom: 1px solid #0f3460;
+            flex-shrink: 0;
+        }
+        .panel-tabs button {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: #888;
+            padding: 10px 0;
+            font-size: 13px;
+            cursor: pointer;
+            transition: 0.2s;
+            font-weight: 500;
+        }
+        .panel-tabs button.active {
+            color: #f5a623;
+            border-bottom: 2px solid #f5a623;
+            background: rgba(245, 166, 35, 0.06);
+        }
+        .panel-tabs button:hover {
+            color: #ddd;
+        }
+        .panel-content {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-content .tab-page {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+        .panel-content .tab-page.active {
+            display: flex;
+        }
+        /* 搜索 & 筛选 */
+        .filter-area {
+            padding: 8px 14px;
+            border-bottom: 1px solid #1a2a4a;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            flex-shrink: 0;
+            background: #0d0d22;
+        }
+        .filter-area label {
+            color: #888;
+            font-size: 12px;
+            margin-right: 2px;
+        }
+        .filter-area select {
+            background: #0d0d2a;
+            border: 1px solid #2a3a5a;
+            border-radius: 6px;
+            padding: 4px 8px;
+            color: #eee;
+            font-size: 12px;
+            outline: none;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .filter-area select:focus {
+            border-color: #f5a623;
+        }
+        .filter-area .search-box-inline {
+            flex: 1;
+            min-width: 120px;
+            display: flex;
+            gap: 6px;
+        }
+        .filter-area .search-box-inline input {
+            flex: 1;
+            background: #0d0d2a;
+            border: 1px solid #2a3a5a;
+            border-radius: 6px;
+            padding: 4px 10px;
+            color: #eee;
+            font-size: 12px;
+            outline: none;
+            transition: 0.2s;
+        }
+        .filter-area .search-box-inline input:focus {
+            border-color: #f5a623;
+        }
+        .filter-area .search-box-inline input::placeholder {
+            color: #556;
+        }
+        .filter-area .clear-btn-sm {
+            background: #2a2a5a;
+            border: none;
+            color: #aaa;
+            border-radius: 6px;
+            padding: 0 10px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: 0.2s;
+        }
+        .filter-area .clear-btn-sm:hover {
+            background: #3a3a7a;
+            color: #fff;
+        }
+        /* 列表 */
+        .item-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 6px 8px;
+        }
+        .item-list::-webkit-scrollbar {
+            width: 5px;
+        }
+        .item-list::-webkit-scrollbar-track {
+            background: #0d0d2a;
+        }
+        .item-list::-webkit-scrollbar-thumb {
+            background: #2a3a6a;
+            border-radius: 4px;
+        }
+        .item-list .list-item {
+            display: flex;
+            align-items: center;
+            padding: 5px 10px;
+            margin: 2px 0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.15s;
+            font-size: 13px;
+            gap: 10px;
+            border-left: 3px solid transparent;
+        }
+        .item-list .list-item:hover {
+            background: #1a2a4a;
+        }
+        .item-list .list-item.active {
+            background: #1a2a5a;
+            border-left-color: #f5a623;
+        }
+        .item-list .list-item .color-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 4px;
+            flex-shrink: 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .item-list .list-item .item-text {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .item-list .list-item .item-wear {
+            font-size: 11px;
+            color: #888;
+            min-width: 50px;
+            text-align: right;
+        }
+        .item-list .list-item .item-wear .wear-val {
+            color: #6af;
+            font-weight: 500;
+        }
+        .item-list .list-item .item-wear .no-wear {
+            color: #666;
+        }
+        /* 详情面板 */
+        .detail-panel {
+            padding: 12px 16px;
+            border-top: 1px solid #1a2a4a;
+            background: #0f1a30;
+            flex-shrink: 0;
+            min-height: 110px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .detail-panel .detail-empty {
+            color: #556;
+            font-size: 13px;
+            text-align: center;
+        }
+        .detail-panel .detail-content {
+            display: none;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .detail-panel .detail-content.show {
+            display: flex;
+        }
+        .detail-panel .detail-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #fff;
+        }
+        .detail-panel .detail-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 12px;
+            font-size: 12px;
+            color: #aaa;
+            margin-top: 2px;
+        }
+        .detail-panel .detail-meta span {
+            background: #1a2a4a;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+        .detail-panel .detail-meta .highlight {
+            color: #f5a623;
+            font-weight: 600;
+        }
+        .detail-panel .detail-meta .coord {
+            color: #6af;
+            font-family: monospace;
+        }
+        .detail-panel .detail-meta .center-coord {
+            color: #f5a623;
+            font-family: monospace;
+            font-weight: 600;
+        }
+        /* ===== Tooltip ===== */
+        .tooltip {
+            position: fixed;
+            background: rgba(10, 10, 30, 0.94);
+            border: 1px solid #2a3a6a;
+            border-radius: 8px;
+            padding: 8px 14px;
+            font-size: 13px;
+            color: #eee;
+            pointer-events: none;
+            display: none;
+            z-index: 999;
+            backdrop-filter: blur(6px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+            max-width: 300px;
+        }
+        .tooltip .tt-name {
+            font-weight: 600;
+            color: #fff;
+        }
+        .tooltip .tt-wear {
+            color: #6af;
+        }
+        .tooltip .tt-extra {
+            color: #888;
+            font-size: 12px;
+        }
+        /* ===== 状态栏 ===== */
+        .status-bar {
+            background: #0d0d1f;
+            padding: 5px 24px;
+            border-top: 1px solid #1a2a4a;
+            font-size: 12px;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .status-bar .pos-info {
+            color: #888;
+        }
+        .status-bar .hint {
+            color: #445;
+        }
+        /* ===== 统计页 ===== */
+        #statsContent {
+            padding: 16px;
+            overflow-y: auto;
+            flex: 1;
+            font-size: 14px;
+            color: #ccc;
+        }
+        #statsContent .stat-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            border-bottom: 1px solid #1a1a3e;
+            font-size: 13px;
+        }
+        #statsContent .stat-row .label {
+            color: #888;
+        }
+        #statsContent .stat-row .value {
+            color: #f5a623;
+            font-weight: 600;
+        }
+        /* ===== 响应式 ===== */
+        @media (max-width: 860px) {
+            .side-panel {
+                width: 260px;
+            }
+            header h1 {
+                font-size: 16px;
+            }
+            header .stats {
+                font-size: 12px;
+                gap: 10px;
+            }
+        }
+        @media (max-width: 640px) {
+            .main {
+                flex-direction: column;
+            }
+            .side-panel {
+                width: 100%;
+                height: 40vh;
+                border-left: none;
+                border-top: 2px solid #0f3460;
+            }
+            .canvas-wrap {
+                height: 60vh;
+            }
+            .detail-panel {
+                min-height: 80px;
+            }
+            .filter-area {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .filter-area .search-box-inline {
+                flex: 1;
+            }
+        }
+        /* 上传区域 */
+        .upload-area {
+            padding: 8px 16px;
+            background: #0d0d2a;
+            border-bottom: 1px solid #1a2a4a;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+            font-size: 12px;
+            color: #888;
+        }
+        .upload-area input[type="file"] {
+            display: none;
+        }
+        .upload-area .upload-btn {
+            background: #2a3a5a;
+            border: none;
+            color: #ddd;
+            padding: 4px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: 0.2s;
+        }
+        .upload-area .upload-btn:hover {
+            background: #3a4a7a;
+            color: #fff;
+        }
+        .upload-area .file-status {
+            color: #6a6;
+            font-size: 12px;
+        }
+        /* 空状态提示 */
+        .empty-hint {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #556;
+            font-size: 18px;
+            flex-direction: column;
+            gap: 12px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+        }
+        .empty-hint .icon {
+            font-size: 48px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== HEADER ===== -->
+    <header>
+        <h1>🎯 CS2 库存展示器</h1>
+        <div class="stats">
+            <span>📦 显示 <em id="totalCount">0</em></span>
+            <span>🎨 种类 <em id="typeCount">0</em></span>
+            <span>📊 平均磨损 <em id="avgWear">-</em></span>
+        </div>
+    </header>
+
+    <!-- ===== MAIN ===== -->
+    <div class="main">
+        <!-- 画布 -->
+        <div class="canvas-wrap" id="canvasWrap">
+            <canvas id="mainCanvas"></canvas>
+            <div class="empty-hint" id="emptyHint">
+                <div class="icon">📂</div>
+                <div>请上传 buff_inventory.csv</div>
+                <div style="font-size:14px;color:#445;">点击右侧「上传 CSV」按钮或拖拽文件到此处</div>
+            </div>
+            <!-- 垂直滑块 -->
+            <div class="v-scroll" id="vScroll">
+                <div class="thumb" id="vThumb"></div>
+            </div>
+        </div>
+
+        <!-- 右侧面板 -->
+        <div class="side-panel">
+            <!-- 上传区域 -->
+            <div class="upload-area">
+                <span>📂 数据</span>
+                <button class="upload-btn" id="uploadBtn">上传 CSV</button>
+                <input type="file" id="fileInput" accept=".csv" />
+                <span class="file-status" id="fileStatus">未加载</span>
+            </div>
+
+            <div class="panel-tabs">
+                <button class="active" data-tab="list">📋 列表</button>
+                <button data-tab="stats">📊 统计</button>
+            </div>
+            <div class="panel-content">
+                <!-- 列表 -->
+                <div class="tab-page active" id="tabList">
+                    <!-- 筛选栏 -->
+                    <div class="filter-area">
+                        <label>磨损</label>
+                        <select id="wearFilter">
+                            <option value="全部">全部</option>
+                        </select>
+                        <div class="search-box-inline">
+                            <input type="text" id="searchInput" placeholder="搜索名称..." />
+                            <button class="clear-btn-sm" id="clearSearch">✕</button>
+                        </div>
+                    </div>
+                    <div class="item-list" id="itemList"></div>
+                </div>
+                <!-- 统计 -->
+                <div class="tab-page" id="tabStats">
+                    <div id="statsContent">加载中...</div>
+                </div>
+            </div>
+            <!-- 详情 -->
+            <div class="detail-panel" id="detailPanel">
+                <div class="detail-empty" id="detailEmpty">👆 点击画布上的卡片查看详情</div>
+                <div class="detail-content" id="detailContent">
+                    <div class="detail-name" id="detailName">-</div>
+                    <div class="detail-meta" id="detailMeta"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== TOOLTIP ===== -->
+    <div class="tooltip" id="tooltip">
+        <div class="tt-name" id="ttName">-</div>
+        <div class="tt-wear" id="ttWear">磨损: -</div>
+        <div class="tt-extra" id="ttExtra">-</div>
+    </div>
+
+    <!-- ===== STATUS BAR ===== -->
+    <div class="status-bar">
+        <span class="pos-info" id="statusPos">📍 视口: -</span>
+        <span class="hint">🖱 悬停预览 · 点击选中 · 滚轮缩放 · 拖拽平移 · 右侧滑块快速滚动</span>
+    </div>
+
+    <script>
+        // ================================================================
+        //  全局状态
+        // ================================================================
+        let allItems = []; // 原始完整数据
+        let filteredItems = []; // 当前筛选后的数据
+        const COLS = 9;
+        const CARD_W = 165,
+            CARD_H = 190;
+        const GAP_X = 28;
+        const BIG_X = 77,
+            BIG_Y = 154,
+            BIG_W = 1702,
+            BIG_H = 926;
+
+        let cardPositions = [];
+        let scale = 1,
+            offsetX = 0,
+            offsetY = 0;
+        let selectedIndex = -1, // 在 filteredItems 中的索引
+            hoverIndex = -1;
+        let isDragging = false,
+            isPanning = false;
+        let dragStartX = 0,
+            dragStartY = 0,
+            dragOffsetX = 0,
+            dragOffsetY = 0;
+        let mouseDown = false;
+
+        // DOM 引用
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const wrap = document.getElementById('canvasWrap');
+        const emptyHint = document.getElementById('emptyHint');
+        const fileStatus = document.getElementById('fileStatus');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileInput = document.getElementById('fileInput');
+        const vScroll = document.getElementById('vScroll');
+        const vThumb = document.getElementById('vThumb');
+        const wearFilter = document.getElementById('wearFilter');
+        const searchInput = document.getElementById('searchInput');
+        const clearSearchBtn = document.getElementById('clearSearch');
+
+        // ================================================================
+        //  颜色生成
+        // ================================================================
+        const colorCache = {};
+        function stringToColor(str) {
+            let hash = 0;
+            for (let i = 0; i < str.length; i++) {
+                hash = str.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const hue = ((hash % 360) + 360) % 360;
+            return `hsl(${hue}, 70%, 55%)`;
+        }
+        function getColor(name) {
+            if (!colorCache[name]) colorCache[name] = stringToColor(name);
+            return colorCache[name];
+        }
+
+        // ================================================================
+        //  解析 CSV
+        // ================================================================
+        function parseCSVtoItems(csvText) {
+            const lines = csvText.trim().split('\n');
+            if (lines.length < 2) return [];
+            const header = lines[0].split(',').map(h => h.trim());
+            const idxName = header.indexOf('名称');
+            const idxPrice = header.indexOf('售价(元)');
+            const idxStatus = header.indexOf('状态');
+            const idxWearLevel = header.indexOf('磨损等级');
+            const idxWearVal = header.indexOf('磨损数值');
+            const idxQuality = header.indexOf('品质');
+            const idxCollection = header.indexOf('收藏品');
+            const idxAsset = header.indexOf('AssetID');
+            const result = [];
+            for (let i = 1; i < lines.length; i++) {
+                const row = [];
+                let current = '';
+                let inQuotes = false;
+                const line = lines[i];
+                for (let ch of line) {
+                    if (ch === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (ch === ',' && !inQuotes) {
+                        row.push(current.trim());
+                        current = '';
+                    } else {
+                        current += ch;
+                    }
+                }
+                row.push(current.trim());
+                if (row.length < 2) continue;
+
+                const name = row[idxName] || '';
+                const price = parseFloat(row[idxPrice]) || 0;
+                let status = '可出售';
+                try {
+                    const statusObj = JSON.parse(row[idxStatus]);
+                    status = statusObj.state_text || '可出售';
+                } catch (e) {
+                    status = row[idxStatus] || '可出售';
+                }
+                const wearLevel = row[idxWearLevel] || '';
+                const wearValue = parseFloat(row[idxWearVal]);
+                const quality = row[idxQuality] || '';
+                const collection = row[idxCollection] || '';
+                const assetId = row[idxAsset] || '';
+
+                const displayName = name.replace(/\s*\([^)]*\)\s*$/, '').trim() || name;
+                const hasWear = !isNaN(wearValue) && wearValue >= 0 && wearLevel !== '无' && wearLevel !== '';
+
+                result.push({
+                    name: name,
+                    displayName: displayName,
+                    price: price,
+                    status: status,
+                    wearLevel: wearLevel,
+                    wearValue: hasWear ? wearValue : undefined,
+                    quality: quality,
+                    collection: collection,
+                    assetId: assetId,
+                    hasWear: hasWear,
+                });
+            }
+            return result;
+        }
+
+        // ================================================================
+        //  网格 & 画布尺寸
+        // ================================================================
+        function rebuildGrid() {
+            const total = filteredItems.length;
+            const rows = Math.ceil(total / COLS);
+            cardPositions = [];
+            for (let i = 0; i < total; i++) {
+                const col = i % COLS;
+                const row = Math.floor(i / COLS);
+                cardPositions.push({
+                    x: BIG_X + col * (CARD_W + GAP_X),
+                    y: BIG_Y + row * CARD_H,
+                    w: CARD_W,
+                    h: CARD_H
+                });
+            }
+            const gridW = COLS * CARD_W + (COLS - 1) * GAP_X;
+            const gridH = rows * CARD_H;
+            const cw = Math.max(BIG_X + BIG_W, BIG_X + gridW);
+            const ch = Math.max(BIG_Y + BIG_H, BIG_Y + gridH);
+            return { canvasW: cw, canvasH: ch, rows: rows };
+        }
+
+        // ================================================================
+        //  坐标转换
+        // ================================================================
+        function toScreen(lx, ly) {
+            return [lx * scale + offsetX, ly * scale + offsetY];
+        }
+
+        function toLogic(sx, sy) {
+            return [(sx - offsetX) / scale, (sy - offsetY) / scale];
+        }
+
+        // ================================================================
+        //  垂直滑块更新
+        // ================================================================
+        function updateScrollThumb() {
+            if (filteredItems.length === 0) { vThumb.style.top = '0'; return; }
+            const { canvasH } = rebuildGrid();
+            const totalHeight = canvasH * scale;
+            const viewHeight = canvas.height;
+            if (totalHeight <= viewHeight) {
+                vThumb.style.display = 'none';
+                return;
+            }
+            vThumb.style.display = 'block';
+            const trackHeight = vScroll.clientHeight - 10;
+            const thumbHeight = Math.max(20, trackHeight * (viewHeight / totalHeight));
+            vThumb.style.height = thumbHeight + 'px';
+            const scrollRatio = -offsetY / (totalHeight - viewHeight);
+            const topPos = 5 + scrollRatio * (trackHeight - thumbHeight);
+            vThumb.style.top = Math.max(0, Math.min(trackHeight - thumbHeight, topPos)) + 'px';
+        }
+
+        // 滑块拖拽
+        let thumbDragging = false;
+        vThumb.addEventListener('mousedown', (e) => {
+            e.stopPropagation();
+            thumbDragging = true;
+            vThumb.classList.add('dragging');
+            const startY = e.clientY;
+            const startTop = parseFloat(vThumb.style.top) || 0;
+            const trackHeight = vScroll.clientHeight - 10;
+            const thumbHeight = vThumb.clientHeight;
+
+            const onMove = (ev) => {
+                const dy = ev.clientY - startY;
+                let newTop = startTop + dy;
+                newTop = Math.max(0, Math.min(trackHeight - thumbHeight, newTop));
+                vThumb.style.top = newTop + 'px';
+                const { canvasH } = rebuildGrid();
+                const totalHeight = canvasH * scale;
+                const viewHeight = canvas.height;
+                const ratio = newTop / (trackHeight - thumbHeight);
+                const maxOffset = totalHeight - viewHeight;
+                offsetY = -ratio * maxOffset;
+                render();
+                updateStatus();
+                updateScrollThumb();
+            };
+            const onUp = () => {
+                thumbDragging = false;
+                vThumb.classList.remove('dragging');
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+            };
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+
+        // ================================================================
+        //  筛选逻辑
+        // ================================================================
+        function applyFilters() {
+            const search = searchInput.value.trim().toLowerCase();
+            const wear = wearFilter.value;
+
+            filteredItems = allItems.filter(item => {
+                // 磨损筛选
+                if (wear !== '全部') {
+                    if (!item.hasWear) return false;
+                    if (item.wearLevel !== wear) return false;
+                }
+                // 搜索筛选
+                if (search) {
+                    return item.displayName.toLowerCase().includes(search) ||
+                        item.name.toLowerCase().includes(search);
+                }
+                return true;
+            });
+
+            // 重置选中
+            selectedIndex = -1;
+            hideDetail();
+            // 更新视图
+            fitCanvas();
+            renderList();
+            renderStats();
+            updateHeaderStats();
+            // 如果有数据且之前有选中，尝试选中第一个
+            if (filteredItems.length > 0) {
+                selectedIndex = 0;
+                showDetail(0);
+                render();
+                updateListHighlight();
+                const pos = cardPositions[0];
+                const cx = pos.x + pos.w / 2;
+                const cy = pos.y + pos.h / 2;
+                const wrapW = wrap.clientWidth;
+                const wrapH = wrap.clientHeight;
+                offsetX = wrapW / 2 - cx * scale;
+                offsetY = wrapH / 2 - cy * scale;
+                render();
+                updateStatus();
+            }
+        }
+
+        // ================================================================
+        //  渲染
+        // ================================================================
+        function render() {
+            const w = canvas.width,
+                h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            if (filteredItems.length === 0) {
+                emptyHint.style.display = 'flex';
+                vScroll.style.display = 'none';
+                return;
+            }
+            emptyHint.style.display = 'none';
+            vScroll.style.display = 'block';
+
+            // 网格背景
+            ctx.save();
+            ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+            ctx.lineWidth = 0.5;
+            const step = 50;
+            for (let x = BIG_X; x <= BIG_X + BIG_W; x += step) {
+                const [sx] = toScreen(x, 0);
+                if (sx > 0 && sx < w) {
+                    ctx.beginPath();
+                    ctx.moveTo(sx, 0);
+                    ctx.lineTo(sx, h);
+                    ctx.stroke();
+                }
+            }
+            for (let y = BIG_Y; y <= BIG_Y + BIG_H; y += step) {
+                const [, sy] = toScreen(0, y);
+                if (sy > 0 && sy < h) {
+                    ctx.beginPath();
+                    ctx.moveTo(0, sy);
+                    ctx.lineTo(w, sy);
+                    ctx.stroke();
+                }
+            }
+            ctx.restore();
+
+            // 大框边框
+            ctx.save();
+            const [bx1, by1] = toScreen(BIG_X, BIG_Y);
+            const [bx2, by2] = toScreen(BIG_X + BIG_W, BIG_Y + BIG_H);
+            ctx.strokeStyle = 'rgba(245,166,35,0.15)';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([6, 6]);
+            ctx.strokeRect(bx1, by1, bx2 - bx1, by2 - by1);
+            ctx.setLineDash([]);
+            ctx.restore();
+
+            // 绘制卡片
+            for (let i = 0; i < filteredItems.length; i++) {
+                const item = filteredItems[i];
+                const pos = cardPositions[i];
+                const [sx, sy] = toScreen(pos.x, pos.y);
+                const sw = pos.w * scale;
+                const sh = pos.h * scale;
+
+                if (sx + sw < -10 || sx > w + 10 || sy + sh < -10 || sy > h + 10) continue;
+
+                const color = getColor(item.displayName);
+                const isSelected = (i === selectedIndex);
+                const isHover = (i === hoverIndex);
+
+                ctx.save();
+                ctx.fillStyle = color.replace('hsl', 'hsla').replace(')', ', 0.12)');
+                ctx.fillRect(sx, sy, sw, sh);
+
+                let lineW = isSelected ? 3 : (isHover ? 2.5 : 1.5);
+                ctx.lineWidth = lineW;
+                if (isSelected) {
+                    ctx.strokeStyle = '#f5a623';
+                    ctx.shadowColor = '#f5a623';
+                    ctx.shadowBlur = 12;
+                } else if (isHover) {
+                    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+                } else {
+                    ctx.strokeStyle = color;
+                    ctx.globalAlpha = 0.6;
+                }
+                ctx.strokeRect(sx, sy, sw, sh);
+                ctx.shadowBlur = 0;
+                ctx.globalAlpha = 1;
+                ctx.restore();
+
+                // 磨损条
+                if (item.hasWear && sw > 20 && sh > 20) {
+                    const barH = 3;
+                    const barY = sy + sh - barH - 2;
+                    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                    ctx.fillRect(sx + 2, barY, sw - 4, barH);
+                    const wearPct = Math.min(1, Math.max(0, item.wearValue));
+                    const wColor = wearPct < 0.1 ? '#6f6' : (wearPct < 0.3 ? '#6f6' : (wearPct < 0.6 ? '#fa6' : '#a66'));
+                    ctx.fillStyle = wColor;
+                    ctx.fillRect(sx + 3, barY + 1, (sw - 6) * (1 - wearPct * 0.9), barH - 2);
+                } else if (sw > 20 && sh > 20) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+                    ctx.beginPath();
+                    ctx.arc(sx + sw - 8, sy + sh - 8, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // 文字
+                if (sw > 30 && sh > 30) {
+                    const fontSize = Math.min(Math.max(sw * 0.12, 8), 16);
+                    ctx.save();
+                    ctx.fillStyle = '#fff';
+                    ctx.font = `${fontSize}px "Segoe UI","Microsoft YaHei",sans-serif`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+
+                    let label = item.displayName;
+                    if (label.length > 12) label = label.slice(0, 10) + '…';
+                    ctx.shadowColor = 'rgba(0,0,0,0.9)';
+                    ctx.shadowBlur = 6;
+                    ctx.fillText(label, sx + sw / 2, sy + sh / 2 - 10);
+
+                    ctx.font = `${Math.max(fontSize * 0.65, 7)}px "Segoe UI","Microsoft YaHei",sans-serif`;
+                    ctx.fillStyle = '#bbb';
+                    ctx.shadowBlur = 4;
+                    let sub = item.hasWear ? item.wearLevel : (item.quality || '无磨损');
+                    if (sub.length > 8) sub = sub.slice(0, 6) + '…';
+                    ctx.fillText(sub, sx + sw / 2, sy + sh / 2 + fontSize * 0.6);
+
+                    ctx.shadowBlur = 0;
+                    ctx.restore();
+                }
+
+                if (isSelected) {
+                    ctx.save();
+                    ctx.shadowColor = '#f5a623';
+                    ctx.shadowBlur = 20;
+                    ctx.strokeStyle = 'rgba(245,166,35,0.2)';
+                    ctx.lineWidth = 4;
+                    ctx.strokeRect(sx - 2, sy - 2, sw + 4, sh + 4);
+                    ctx.shadowBlur = 0;
+                    ctx.restore();
+                }
+            }
+
+            ctx.save();
+            ctx.fillStyle = 'rgba(255,255,255,0.06)';
+            ctx.font = '12px monospace';
+            ctx.fillStyle = 'rgba(255,255,255,0.15)';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'top';
+            ctx.fillText(`📦 ${filteredItems.length} 个条目 · ${COLS} 列 · 拖动平移 · 滚轮缩放`, 10, 10);
+            ctx.restore();
+
+            updateScrollThumb();
+        }
+
+        // ================================================================
+        //  交互事件
+        // ================================================================
+        function hitTest(sx, sy) {
+            const [lx, ly] = toLogic(sx, sy);
+            for (let i = filteredItems.length - 1; i >= 0; i--) {
+                const pos = cardPositions[i];
+                if (lx >= pos.x && lx <= pos.x + pos.w &&
+                    ly >= pos.y && ly <= pos.y + pos.h) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (filteredItems.length === 0) return;
+            const rect = canvas.getBoundingClientRect();
+            const sx = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const sy = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+            if (e.button === 1) {
+                e.preventDefault();
+                isPanning = true;
+                mouseDown = true;
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                dragOffsetX = offsetX;
+                dragOffsetY = offsetY;
+                canvas.style.cursor = 'grabbing';
+                return;
+            }
+
+            if (e.button === 0) {
+                const idx = hitTest(sx, sy);
+                if (idx !== -1) {
+                    selectedIndex = idx;
+                    showDetail(idx);
+                    render();
+                    updateListHighlight();
+                    const listItems = document.querySelectorAll('.list-item');
+                    if (listItems[idx]) listItems[idx].scrollIntoView({ block: 'center', behavior: 'smooth' });
+                } else {
+                    isPanning = true;
+                    mouseDown = true;
+                    dragStartX = e.clientX;
+                    dragStartY = e.clientY;
+                    dragOffsetX = offsetX;
+                    dragOffsetY = offsetY;
+                    canvas.style.cursor = 'grabbing';
+                }
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (filteredItems.length === 0) return;
+            const rect = canvas.getBoundingClientRect();
+            const sx = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const sy = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+            if (mouseDown && isPanning) {
+                const dx = e.clientX - dragStartX;
+                const dy = e.clientY - dragStartY;
+                offsetX = dragOffsetX + dx;
+                offsetY = dragOffsetY + dy;
+                render();
+                updateStatus();
+                return;
+            }
+
+            const idx = hitTest(sx, sy);
+            if (idx !== -1) {
+                hoverIndex = idx;
+                canvas.style.cursor = 'pointer';
+                const item = filteredItems[idx];
+                const tooltip = document.getElementById('tooltip');
+                document.getElementById('ttName').textContent = item.displayName;
+                document.getElementById('ttWear').textContent = item.hasWear ?
+                    `磨损: ${item.wearLevel} (${item.wearValue.toFixed(9)})` :
+                    `类型: ${item.quality || '无磨损'}`;
+                document.getElementById('ttExtra').textContent =
+                    `💰 ¥${item.price.toFixed(2)} · ${item.collection || '无收藏品'}`;
+                tooltip.style.display = 'block';
+                let tx = e.clientX + 14,
+                    ty = e.clientY + 10;
+                if (tx + 300 > window.innerWidth) tx = e.clientX - 310;
+                if (ty + 80 > window.innerHeight) ty = window.innerHeight - 90;
+                tooltip.style.left = tx + 'px';
+                tooltip.style.top = ty + 'px';
+            } else {
+                if (hoverIndex !== -1) {
+                    hoverIndex = -1;
+                    render();
+                    updateListHighlight();
+                }
+                canvas.style.cursor = 'grab';
+                document.getElementById('tooltip').style.display = 'none';
+            }
+            if (hoverIndex !== -1) {
+                render();
+                updateListHighlight();
+            }
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (e.button === 1 || e.button === 0) {
+                mouseDown = false;
+                isPanning = false;
+                canvas.style.cursor = 'grab';
+            }
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            mouseDown = false;
+            isPanning = false;
+            hoverIndex = -1;
+            document.getElementById('tooltip').style.display = 'none';
+            canvas.style.cursor = 'grab';
+            render();
+            updateListHighlight();
+        });
+
+        canvas.addEventListener('wheel', (e) => {
+            if (filteredItems.length === 0) return;
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const sx = (e.clientX - rect.left) * (canvas.width / rect.width);
+            const sy = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+            const delta = e.deltaY > 0 ? -0.08 : 0.08;
+            let newScale = scale * (1 + delta);
+            newScale = Math.max(0.15, Math.min(3.0, newScale));
+
+            const [lx, ly] = toLogic(sx, sy);
+            scale = newScale;
+            offsetX = sx - lx * scale;
+            offsetY = sy - ly * scale;
+            render();
+            updateStatus();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                selectedIndex = -1;
+                hideDetail();
+                render();
+                updateListHighlight();
+            }
+        });
+
+        // ================================================================
+        //  详情面板
+        // ================================================================
+        function showDetail(idx) {
+            const item = filteredItems[idx];
+            const pos = cardPositions[idx];
+            document.getElementById('detailEmpty').style.display = 'none';
+            const dc = document.getElementById('detailContent');
+            dc.classList.add('show');
+            document.getElementById('detailName').textContent = item.displayName;
+            const meta = document.getElementById('detailMeta');
+
+            const x1 = pos.x,
+                y1 = pos.y;
+            const x2 = pos.x + pos.w,
+                y2 = pos.y;
+            const x3 = pos.x,
+                y3 = pos.y + pos.h;
+            const x4 = pos.x + pos.w,
+                y4 = pos.y + pos.h;
+            const cx = pos.x + pos.w / 2,
+                cy = pos.y + pos.h / 2;
+
+            meta.innerHTML = `
+                <span class="coord">↖ (${x1},${y1})</span>
+                <span class="coord">↗ (${x2},${y2})</span>
+                <span class="coord">↙ (${x3},${y3})</span>
+                <span class="coord">↘ (${x4},${y4})</span>
+                <span class="center-coord">◎ (${cx.toFixed(1)},${cy.toFixed(1)})</span>
+                <span>💎 ${item.quality || '无'}</span>
+                <span>📦 ${item.collection || '无'}</span>
+                <span>🆔 ${item.assetId || '无'}</span>
+                <span>📌 ${item.status}</span>
+                <span class="highlight">💰 ¥${item.price.toFixed(2)}</span>
+                ${item.hasWear ? `<span>🔧 ${item.wearLevel} (${item.wearValue.toFixed(9)})</span>` : '<span>🔧 无磨损</span>'}
+            `;
+        }
+
+        function hideDetail() {
+            document.getElementById('detailEmpty').style.display = 'block';
+            document.getElementById('detailContent').classList.remove('show');
+        }
+
+        // ================================================================
+        //  列表
+        // ================================================================
+        const itemListEl = document.getElementById('itemList');
+
+        function renderList() {
+            itemListEl.innerHTML = '';
+            for (const it of filteredItems) {
+                const div = document.createElement('div');
+                div.className = 'list-item';
+                const color = getColor(it.displayName);
+                const dot = document.createElement('span');
+                dot.className = 'color-dot';
+                dot.style.background = color;
+                div.appendChild(dot);
+
+                const textSpan = document.createElement('span');
+                textSpan.className = 'item-text';
+                textSpan.textContent = it.displayName;
+                div.appendChild(textSpan);
+
+                const wearSpan = document.createElement('span');
+                wearSpan.className = 'item-wear';
+                if (it.hasWear) {
+                    wearSpan.innerHTML = `<span class="wear-val">${(it.wearValue*100).toFixed(1)}%</span>`;
+                } else {
+                    wearSpan.innerHTML = `<span class="no-wear">无</span>`;
+                }
+                div.appendChild(wearSpan);
+
+                div.addEventListener('click', () => {
+                    const idx = filteredItems.indexOf(it);
+                    if (idx !== -1) {
+                        selectedIndex = idx;
+                        showDetail(idx);
+                        render();
+                        updateListHighlight();
+                        const pos = cardPositions[idx];
+                        const cx = pos.x + pos.w / 2;
+                        const cy = pos.y + pos.h / 2;
+                        const wrapW = wrap.clientWidth;
+                        const wrapH = wrap.clientHeight;
+                        offsetX = wrapW / 2 - cx * scale;
+                        offsetY = wrapH / 2 - cy * scale;
+                        render();
+                        updateStatus();
+                    }
+                });
+                itemListEl.appendChild(div);
+            }
+            updateListHighlight();
+        }
+
+        function updateListHighlight() {
+            const itemsEl = itemListEl.querySelectorAll('.list-item');
+            itemsEl.forEach((el, i) => {
+                el.classList.toggle('active', i === selectedIndex);
+            });
+        }
+
+        // ================================================================
+        //  统计
+        // ================================================================
+        function renderStats() {
+            if (filteredItems.length === 0) {
+                document.getElementById('statsContent').innerHTML = '<div style="color:#556;text-align:center;padding:20px;">无匹配项</div>';
+                return;
+            }
+            const typeMap = {};
+            let totalWear = 0,
+                wearCount = 0;
+            for (const it of filteredItems) {
+                typeMap[it.displayName] = (typeMap[it.displayName] || 0) + 1;
+                if (it.hasWear) {
+                    totalWear += it.wearValue;
+                    wearCount++;
+                }
+            }
+            const sorted = Object.entries(typeMap).sort((a, b) => b[1] - a[1]);
+            const avgWear = wearCount > 0 ? totalWear / wearCount : 0;
+
+            let html = `
+                <div style="margin-bottom:16px;background:#0d0d2a;border-radius:8px;padding:14px;">
+                    <div class="stat-row"><span class="label">当前显示</span><span class="value">${filteredItems.length}</span></div>
+                    <div class="stat-row"><span class="label">皮肤种类</span><span class="value">${sorted.length}</span></div>
+                    <div class="stat-row"><span class="label">平均磨损（仅皮肤）</span><span class="value">${wearCount > 0 ? (avgWear*100).toFixed(1)+'%' : '无'}</span></div>
+                </div>
+                <div style="font-weight:500;color:#ddd;margin-bottom:8px;font-size:13px;">📊 出现次数 Top 20</div>
+            `;
+            const top = sorted.slice(0, 20);
+            for (const [name, count] of top) {
+                const pct = ((count / filteredItems.length) * 100).toFixed(1);
+                const color = getColor(name);
+                html += `
+                    <div style="display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px solid #1a1a3e;font-size:13px;">
+                        <span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:${color};flex-shrink:0;"></span>
+                        <span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</span>
+                        <span style="color:#888;font-size:12px;">${count}次</span>
+                        <span style="color:#556;font-size:11px;min-width:32px;text-align:right;">${pct}%</span>
+                    </div>
+                `;
+            }
+            document.getElementById('statsContent').innerHTML = html;
+        }
+
+        // ================================================================
+        //  头部统计
+        // ================================================================
+        function updateHeaderStats() {
+            document.getElementById('totalCount').textContent = filteredItems.length;
+            const typeSet = new Set(filteredItems.map(it => it.displayName));
+            document.getElementById('typeCount').textContent = typeSet.size;
+            let totalWear = 0,
+                wearCount = 0;
+            for (const it of filteredItems) {
+                if (it.hasWear) {
+                    totalWear += it.wearValue;
+                    wearCount++;
+                }
+            }
+            const avg = wearCount > 0 ? (totalWear / wearCount * 100).toFixed(1) + '%' : '无';
+            document.getElementById('avgWear').textContent = avg;
+        }
+
+        // ================================================================
+        //  状态栏
+        // ================================================================
+        function updateStatus() {
+            if (filteredItems.length === 0) {
+                document.getElementById('statusPos').textContent = '📍 无数据';
+                return;
+            }
+            const [lx, ly] = toLogic(0, 0);
+            const [rx, ry] = toLogic(canvas.width, canvas.height);
+            document.getElementById('statusPos').textContent =
+                `📍 视口: (${Math.round(lx)}, ${Math.round(ly)}) → (${Math.round(rx)}, ${Math.round(ry)})  缩放: ${(scale*100).toFixed(0)}%`;
+        }
+
+        // ================================================================
+        //  画布适配
+        // ================================================================
+        function fitCanvas() {
+            const wrapW = wrap.clientWidth;
+            const wrapH = wrap.clientHeight;
+            if (filteredItems.length === 0) {
+                canvas.width = wrapW;
+                canvas.height = wrapH;
+                canvas.style.width = wrapW + 'px';
+                canvas.style.height = wrapH + 'px';
+                render();
+                return;
+            }
+            const { canvasW, canvasH } = rebuildGrid();
+            const scaleX = wrapW / canvasW;
+            const scaleY = wrapH / canvasH;
+            let newScale = Math.min(scaleX, scaleY, 1.5);
+            newScale = Math.max(newScale, 0.15);
+
+            if (scale === 1 && offsetX === 0 && offsetY === 0) {
+                scale = newScale;
+                const cx = BIG_X + BIG_W / 2;
+                const cy = BIG_Y + BIG_H / 2;
+                offsetX = wrapW / 2 - cx * scale;
+                offsetY = wrapH / 2 - cy * scale;
+            } else {
+                const centerX = (wrapW / 2 - offsetX) / scale;
+                const centerY = (wrapH / 2 - offsetY) / scale;
+                scale = newScale;
+                offsetX = wrapW / 2 - centerX * scale;
+                offsetY = wrapH / 2 - centerY * scale;
+            }
+
+            canvas.width = wrapW;
+            canvas.height = wrapH;
+            canvas.style.width = wrapW + 'px';
+            canvas.style.height = wrapH + 'px';
+            render();
+            updateStatus();
+        }
+
+        // ================================================================
+        //  数据加载 & 筛选器填充
+        // ================================================================
+        function loadData(csvText) {
+            allItems = parseCSVtoItems(csvText);
+            if (allItems.length === 0) {
+                alert('未能解析到有效数据，请检查CSV格式。');
+                return;
+            }
+            fileStatus.textContent = `✅ 已加载 ${allItems.length} 个条目`;
+
+            // 填充磨损筛选下拉
+            const wearSet = new Set();
+            for (const item of allItems) {
+                if (item.hasWear) wearSet.add(item.wearLevel);
+            }
+            // 按常见顺序排序
+            const order = ['崭新出厂', '略有磨损', '久经沙场', '破损不堪', '战痕累累'];
+            const sortedWear = [...wearSet].sort((a, b) => {
+                const ia = order.indexOf(a);
+                const ib = order.indexOf(b);
+                if (ia === -1 && ib === -1) return a.localeCompare(b);
+                if (ia === -1) return 1;
+                if (ib === -1) return -1;
+                return ia - ib;
+            });
+            wearFilter.innerHTML = '<option value="全部">全部</option>';
+            for (const w of sortedWear) {
+                const opt = document.createElement('option');
+                opt.value = w;
+                opt.textContent = w;
+                wearFilter.appendChild(opt);
+            }
+
+            // 应用筛选
+            applyFilters();
+        }
+
+        // ================================================================
+        //  筛选事件绑定
+        // ================================================================
+        wearFilter.addEventListener('change', applyFilters);
+        searchInput.addEventListener('input', applyFilters);
+        clearSearchBtn.addEventListener('click', () => {
+            searchInput.value = '';
+            applyFilters();
+        });
+
+        // ================================================================
+        //  文件上传 & 自动触发
+        // ================================================================
+        uploadBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    loadData(ev.target.result);
+                } catch (err) {
+                    alert('解析失败: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                fileInput.click();
+            }, 300);
+        });
+
+        // ================================================================
+        //  窗口自适应 & Tab切换
+        // ================================================================
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(fitCanvas, 150);
+        });
+
+        document.querySelectorAll('.panel-tabs button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.panel-tabs button').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const tab = btn.dataset.tab;
+                document.querySelectorAll('.tab-page').forEach(el => el.classList.remove('active'));
+                document.getElementById('tab' + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add('active');
+                if (tab === 'stats') renderStats();
+            });
+        });
+
+        // ================================================================
+        //  初始化
+        // ================================================================
+        fitCanvas();
+        renderList();
+        renderStats();
+        updateHeaderStats();
+        document.getElementById('fileStatus').textContent = '请上传 CSV';
+        console.log('✅ 页面已就绪，自动弹出文件选择对话框');
+    </script>
+</body>
+</html>

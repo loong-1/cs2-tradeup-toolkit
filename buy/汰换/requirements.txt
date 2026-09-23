@@ -1,0 +1,14 @@
+PySide6>=6.5.0
+requests>=2.28.0
+cryptography>=41.0.0
+# 凭证统一从项目根目录 .env 读取
+python-dotenv>=1.0.0
+# 游戏内点击（仅 Windows 运行时需要，打包时不强制）
+opencv-python>=4.8.0
+numpy>=1.24.0
+pyautogui>=0.9.54
+pygetwindow>=0.0.9
+pywin32>=305
+# C5 网页购买（绕过反自动化检测）
+undetected-chromedriver>=3.5.0
+selenium>=4.15.0
